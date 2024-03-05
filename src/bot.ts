@@ -1,28 +1,20 @@
 import axios from "axios";
-import { Bot, InlineKeyboard } from "grammy";
-import mongoose from "mongoose";
 import { Message } from "grammy/types";
-import { followMessage, welcomeMessage } from "./messages";
-import { getMediaGroup, getOptions } from "./utils/bot.utils";
+import { Context, GrammyError, HttpError } from "grammy";
+
+import bot from "./app";
 import User from "./model/user.model";
+import { checkIfJoinedChannels } from "./middleware";
+import { getMediaGroup, getOptions } from "./utils/media.utils";
 
-require("dotenv").config();
-
-const token = process.env.BOT_TOKEN;
-const bot = new Bot(token!);
-
-const dbURI = process.env.MONGODB_URI;
-mongoose
-  .connect(dbURI!)
-  .then(() => console.log("Connected to MongoDB..."))
-  .catch((err) => console.log(err));
+// Use middleware to check if the user has joined specific channels
+bot.use(checkIfJoinedChannels);
 
 bot.command("start", async (ctx) => {
-  ctx.reply(welcomeMessage, { parse_mode: "Markdown" });
-
   try {
     const userId = ctx.update.message?.from.id;
     const existingUser = await User.findOne({ telegram_id: userId });
+    if (!userId) return;
 
     if (!existingUser) {
       const user = new User({
@@ -33,15 +25,6 @@ bot.command("start", async (ctx) => {
 
       await user.save();
     }
-
-    const channels = new InlineKeyboard()
-      .url("My music list", "https://t.me/my_mus_ic_list")
-      .row()
-      .text(`✅ Joined`);
-
-    ctx.reply(`In order to use this bot, you need to join following channels`, {
-      reply_markup: channels,
-    });
   } catch (error) {
     console.log(error);
   }
@@ -49,80 +32,115 @@ bot.command("start", async (ctx) => {
 
 bot.on("message", async (ctx) => {
   const msg = ctx.update.message;
+
   if (msg.text === "/start") return;
+  if (!msg.text || !msg.text?.startsWith("https://www.instagram.com/")) {
+    ctx.reply(`📛Please, send me a valid link!`);
+    return;
+  }
 
-  if (msg.text?.includes("https://www.instagram.com/")) {
-    try {
-      const processingMsg = await ctx.reply(`⏳ **Downloading...**`, {
-        parse_mode: "Markdown",
-      });
+  try {
+    const processingMsg = await ctx.reply(`⏳ Downloading...`);
 
-      //   const options = getOptions(msg.text);
-      //   const response = await axios.request(options);
-      //   const { data } = response;
-
-      //   await ctx.api.deleteMessage(ctx.chat.id, processingMsg.message_id);
-      //   await ctx.reply(`✅ **Downloaded**`, { parse_mode: "Markdown" });
-
-      //   await handleInstagramData(data, ctx, msg);
-
-      //   if (msg.text?.includes("https://www.instagram.com/stories/")) {
-      //     await handleInstagramStoryData(data, ctx, msg);
-      //   }
-    } catch (error) {
-      console.log(error);
-      ctx.reply(`📛*Sorry, something went wrong. Please try again later.*`, {
-        parse_mode: "Markdown",
-      });
-    }
-  } else {
-    ctx.reply(`📛Please, send me a valid instagram video link!`, {
-      parse_mode: "Markdown",
+    const options = getOptions(msg.text);
+    const response = await axios.get(options.url, {
+      params: options.params,
+      headers: options.headers,
     });
+    const { data } = response;
+
+    await ctx.api.deleteMessage(ctx.chat.id, processingMsg.message_id);
+    await ctx.reply(`✅ Downloaded`);
+
+    await handleInstagramData(data, ctx, msg);
+
+    if (msg.text?.startsWith("https://www.instagram.com/stories/")) {
+      await handleInstagramStoryData(data, ctx, msg);
+    }
+  } catch (error) {
+    console.log(error);
+    ctx.reply(`📛Sorry, something went wrong. Please try again later.`);
   }
 });
 
+// when joined pressed
+bot.callbackQuery("joined_pressed", async (ctx) => {
+  await ctx.reply(
+    `Thank you for joining our channel! You can now access to the bot.`
+  );
+});
+
+// Handle various Instagram media types
 const handleInstagramData = async (
   data: any,
-  ctx: any,
+  ctx: Context,
   msg: Message
 ): Promise<void> => {
   const { Type, media } = data;
 
-  if (Type === "Post-Video") {
-    await ctx.replyWithVideo(media, {
-      caption: followMessage,
-      parse_mode: "HTML",
-      reply_to_message_id: msg.message_id,
-    });
-  } else if (Type === "Carousel") {
-    const mediaGroup = getMediaGroup(data);
-    await ctx.replyWithMediaGroup(mediaGroup, {
-      reply_to_message_id: msg.message_id,
-    });
-  } else if (Type === "Post-Image") {
-    await ctx.replyWithPhoto(media, {
-      caption: followMessage,
-      parse_mode: "HTML",
-      reply_to_message_id: msg.message_id,
-    });
+  switch (Type) {
+    case "Post-Video":
+      {
+        await ctx.replyWithVideo(media, {
+          caption: `<i>@insta_downloader_yuklovchi_bot</i>`,
+          parse_mode: "HTML",
+          reply_to_message_id: msg.message_id,
+        });
+      }
+      break;
+    case "Carousel":
+      {
+        const mediaGroup = getMediaGroup(data);
+        await ctx.replyWithMediaGroup(mediaGroup, {
+          reply_to_message_id: msg.message_id,
+        });
+      }
+      break;
+    case "Post-Image": {
+      await ctx.replyWithPhoto(media, {
+        caption: `<i>@insta_downloader_yuklovchi_bot</i>`,
+        parse_mode: "HTML",
+        reply_to_message_id: msg.message_id,
+      });
+    }
+    default:
+      break;
   }
 };
 
+// Handle various Instagram Story media types
 const handleInstagramStoryData = async (
   data: any,
-  ctx: any,
+  ctx: Context,
   msg: Message
 ): Promise<void> => {
   const { story_by_id } = data;
 
+  console.log(data);
   if (story_by_id.Type === "Story-Video") {
     await ctx.replyWithVideo(story_by_id.media, {
-      caption: followMessage,
+      caption: `<i>@insta_downloader_yuklovchi_bot</i>`,
+      parse_mode: "HTML",
+      reply_to_message_id: msg.message_id,
+    });
+  } else if (story_by_id.Type === "Story-Photo") {
+    await ctx.replyWithPhoto(story_by_id.media, {
+      caption: `<i>@insta_downloader_yuklovchi_bot</i>`,
       parse_mode: "HTML",
       reply_to_message_id: msg.message_id,
     });
   }
 };
 
-bot.start();
+bot.catch((err) => {
+  const ctx = err.ctx;
+  console.error(`Error while handling update ${ctx.update.update_id}:`);
+  const e = err.error;
+  if (e instanceof GrammyError) {
+    console.error(`Error in request:, ${e.description}`);
+  } else if (e instanceof HttpError) {
+    console.error(`Could not contact Telegram:, ${e}`);
+  } else {
+    console.error(`Unknown error:, ${e}`);
+  }
+});

@@ -20,6 +20,7 @@ const user_model_1 = __importDefault(require("./model/user.model"));
 require("dotenv").config();
 const token = process.env.BOT_TOKEN;
 const bot = new grammy_1.Bot(token);
+// connect to mongodb
 const dbURI = process.env.MONGODB_URI;
 mongoose_1.default
     .connect(dbURI)
@@ -27,10 +28,11 @@ mongoose_1.default
     .catch((err) => console.log(err));
 bot.command("start", (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
-    ctx.reply(messages_1.welcomeMessage, { parse_mode: "Markdown" });
     try {
         const userId = (_a = ctx.update.message) === null || _a === void 0 ? void 0 : _a.from.id;
         const existingUser = yield user_model_1.default.findOne({ telegram_id: userId });
+        if (!userId)
+            return;
         if (!existingUser) {
             const user = new user_model_1.default({
                 telegram_id: userId,
@@ -39,18 +41,19 @@ bot.command("start", (ctx) => __awaiter(void 0, void 0, void 0, function* () {
             });
             yield user.save();
         }
-        const channels = new grammy_1.InlineKeyboard()
-            .url("My music list", "https://t.me/my_mus_ic_list")
+        const channelsKeyboard = new grammy_1.InlineKeyboard()
+            .url(bot_utils_1.channels[0].name, bot_utils_1.channels[0].url)
             .row()
-            .text("✅Joined");
-        ctx.reply(`In order to use this bot, you need to join following channels`, {
-            reply_markup: channels,
+            .text(`Joined ✅`, "joined_pressed");
+        ctx.reply(`In order to use this bot, you need to join following channel`, {
+            reply_markup: channelsKeyboard,
         });
     }
     catch (error) {
         console.log(error);
     }
 }));
+bot.callbackQuery("joined_pressed", (ctx) => __awaiter(void 0, void 0, void 0, function* () { }));
 bot.on("message", (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     var _d;
     const msg = ctx.update.message;
@@ -87,6 +90,7 @@ bot.on("message", (ctx) => __awaiter(void 0, void 0, void 0, function* () {
 const handleInstagramData = (data, ctx, msg) => __awaiter(void 0, void 0, void 0, function* () {
     const { Type, media } = data;
     if (Type === "Post-Video") {
+        yield ctx.replyWithChatAction("upload_video");
         yield ctx.replyWithVideo(media, {
             caption: messages_1.followMessage,
             parse_mode: "HTML",
@@ -94,12 +98,14 @@ const handleInstagramData = (data, ctx, msg) => __awaiter(void 0, void 0, void 0
         });
     }
     else if (Type === "Carousel") {
+        yield ctx.replyWithChatAction("upload_document");
         const mediaGroup = (0, bot_utils_1.getMediaGroup)(data);
         yield ctx.replyWithMediaGroup(mediaGroup, {
             reply_to_message_id: msg.message_id,
         });
     }
     else if (Type === "Post-Image") {
+        yield ctx.replyWithChatAction("upload_photo");
         yield ctx.replyWithPhoto(media, {
             caption: messages_1.followMessage,
             parse_mode: "HTML",

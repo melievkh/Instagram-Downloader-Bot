@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMediaGroup = exports.getOptions = void 0;
+exports.channels = exports.getMediaGroup = exports.getOptions = void 0;
 const messages_1 = require("../messages");
 require("dotenv").config();
 const APIKey = process.env.RAPID_API_KEY;
@@ -28,3 +28,10 @@ const getMediaGroup = (data) => {
     return mediaGroup;
 };
 exports.getMediaGroup = getMediaGroup;
+const channels = [
+    {
+        name: "My music list",
+        url: "https://t.me/my_mus_ic_list",
+    },
+];
+exports.channels = channels;

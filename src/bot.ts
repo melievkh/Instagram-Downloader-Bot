@@ -4,13 +4,18 @@ import { Context, GrammyError, HttpError } from "grammy";
 
 import bot from "./app";
 import User from "./model/user.model";
-import { checkIfJoinedChannels } from "./middleware";
+import { checkIfJoinedChannels, restrictToPrivateChat } from "./middleware";
 import { getMediaGroup, getOptions } from "./utils/media.utils";
 
 // Use middleware to check if the user has joined specific channels
 bot.use(checkIfJoinedChannels);
+bot.use(restrictToPrivateChat);
 
 bot.command("start", async (ctx) => {
+  await ctx.reply(
+    `✨ Simply send me the link of the content you want to download`
+  );
+
   try {
     const userId = ctx.update.message?.from.id;
     const existingUser = await User.findOne({ telegram_id: userId });
@@ -63,7 +68,7 @@ bot.on("message", async (ctx) => {
   }
 });
 
-// when joined pressed
+// checking if user has joined to the required channels
 bot.callbackQuery("joined_pressed", async (ctx) => {
   await ctx.reply(
     `Thank you for joining our channel! You can now access to the bot.`
@@ -108,7 +113,7 @@ const handleInstagramData = async (
   }
 };
 
-// Handle various Instagram Story media types
+// handle various Instagram Story media types
 const handleInstagramStoryData = async (
   data: any,
   ctx: Context,
@@ -132,9 +137,9 @@ const handleInstagramStoryData = async (
   }
 };
 
+// handling error
 bot.catch((err) => {
   const ctx = err.ctx;
-  console.error(`Error while handling update ${ctx.update.update_id}:`);
   const e = err.error;
   if (e instanceof GrammyError) {
     console.error(`Error in request:, ${e.description}`);

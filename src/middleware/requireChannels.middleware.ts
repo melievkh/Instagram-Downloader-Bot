@@ -17,11 +17,7 @@ export const checkIfJoinedChannels: MiddlewareFn<Context> = async (
 
     const chatMember = await ctx.api.getChatMember(channelId, userId);
 
-    if (
-      chatMember.status === "left" ||
-      chatMember.status === "kicked" ||
-      chatMember.status === "restricted"
-    ) {
+    if (["left", "kicked", "restricted"].includes(chatMember.status)) {
       const channelsKeyboard = new InlineKeyboard()
         .url(channels[0].name, channels[0].url)
         .row()

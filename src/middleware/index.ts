@@ -1,1 +1,2 @@
-export * from "./middleware";
+export * from "./requireChannels.middleware";
+export * from "./allowPrivateChats.middleware";

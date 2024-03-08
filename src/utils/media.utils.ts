@@ -22,6 +22,15 @@ const getMediaGroup = (data: any) => {
   return mediaGroup;
 };
 
+const getUniqueUrls = (data: any) => {
+  const uniqueUrls = new Set();
+  const filteredArray = data.filter(
+    ({ url }: any) => !uniqueUrls.has(url) && uniqueUrls.add(url)
+  );
+
+  return filteredArray;
+};
+
 type ChannelsType = {
   id: string;
   name: string;
@@ -36,4 +45,4 @@ const channels: ChannelsType[] = [
   },
 ];
 
-export { getOptions, getMediaGroup, channels };
+export { getOptions, getMediaGroup, getUniqueUrls, channels };
